@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import JSZip from "jszip";
 import {
   defaultModelJson,
   generateFiles,
@@ -67,19 +68,19 @@ export default function App() {
     }
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
     if (!result) {
       return;
     }
-    const blob = new Blob([
-      Object.entries(result.files)
-        .map(([path, content]) => `// ${path}\n\n${content}`)
-        .join("\n\n// ----\n\n")
-    ], { type: "text/plain" });
+    const zip = new JSZip();
+    Object.entries(result.files).forEach(([path, content]) => {
+      zip.file(path, content);
+    });
+    const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "Output.txt";
+    link.download = "output.zip";
     link.click();
     URL.revokeObjectURL(url);
   };
