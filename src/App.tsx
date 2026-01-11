@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import {
   defaultModelJson,
   generateFiles,
@@ -17,16 +18,6 @@ const gridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
   gap: "1.5rem"
-};
-
-const textAreaStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: 260,
-  padding: "0.75rem",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  fontSize: "0.9rem",
-  borderRadius: 8,
-  border: "1px solid #cbd5f5"
 };
 
 const cardStyle: React.CSSProperties = {
@@ -47,10 +38,49 @@ const codeStyle: React.CSSProperties = {
   overflowX: "auto"
 };
 
+const modelSchema = {
+  $id: "https://createapp.net/schemas/model.json",
+  $schema: "http://json-schema.org/draft-07/schema#",
+  type: "object",
+  required: ["EntityName", "Properties"],
+  properties: {
+    EntityName: {
+      type: "string",
+      minLength: 1
+    },
+    Properties: {
+      type: "array",
+      minItems: 1,
+      items: {
+        $ref: "#/definitions/property"
+      }
+    }
+  },
+  definitions: {
+    property: {
+      type: "object",
+      required: ["Name", "Type"],
+      properties: {
+        Name: {
+          type: "string",
+          minLength: 1
+        },
+        Type: {
+          type: "string",
+          enum: ["int", "string", "decimal", "bool", "datetime", "guid"]
+        }
+      },
+      additionalProperties: false
+    }
+  },
+  additionalProperties: false
+} as const;
+
 export default function App() {
   const [modelJson, setModelJson] = useState(defaultModelJson);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const monaco = useMonaco();
 
   const fileEntries = useMemo(() => {
     return result ? Object.entries(result.files) : [];
@@ -85,6 +115,23 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    if (!monaco) {
+      return;
+    }
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+      validate: true,
+      allowComments: false,
+      schemas: [
+        {
+          uri: modelSchema.$id,
+          fileMatch: ["*"],
+          schema: modelSchema
+        }
+      ]
+    });
+  }, [monaco]);
+
   return (
     <main style={containerStyle}>
       <header style={{ marginBottom: "1.5rem" }}>
@@ -98,11 +145,20 @@ export default function App() {
       <section style={gridStyle}>
         <div style={cardStyle}>
           <h2 style={{ marginTop: 0 }}>Model Definition</h2>
-          <textarea
-            value={modelJson}
-            onChange={(event) => setModelJson(event.target.value)}
-            style={textAreaStyle}
-          />
+          <div style={{ borderRadius: 8, overflow: "hidden" }}>
+            <Editor
+              height={260}
+              defaultLanguage="json"
+              value={modelJson}
+              onChange={(value) => setModelJson(value ?? "")}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                scrollBeyondLastLine: false,
+                automaticLayout: true
+              }}
+            />
+          </div>
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
             <button type="button" onClick={handleGenerate}>
               Generate
